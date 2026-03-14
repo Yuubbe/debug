@@ -1,0 +1,8 @@
+"mangarp"
+{
+	"base"			"base"
+	"title"			"MangaRP"
+	"category"		"other"
+
+	"menusystem"	"1"
+}
