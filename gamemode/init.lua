@@ -1,25 +1,23 @@
 TKRBASE = TKRBASE or {}
-
+-- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- 
+-- LIBS du serveur (vitale au fonctionnement du gamemode)
+-- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- 
 AddCSLuaFile("shared.lua")
 include("shared.lua")
-
 AddCSLuaFile("libraries/resp/responsive.lua")
 AddCSLuaFile("libraries/resp/panel.lua")
 AddCSLuaFile("libraries/resp/materials.lua")
 AddCSLuaFile("libraries/resp/anims.lua")
-
 AddCSLuaFile("libraries/debug/config.lua")
 AddCSLuaFile("libraries/debug/utils.lua")
 include("libraries/debug/config.lua")
 include("libraries/debug/utils.lua")
-
 include("libraries/sqlite/utils.lua")
 include("libraries/sqlite/create.lua")
 include("libraries/sqlite/insert.lua")
 include("libraries/sqlite/select.lua")
 include("libraries/sqlite/update.lua")
 include("libraries/sqlite/delete.lua")
-
 include("libraries/mysql/init.lua")
 include("libraries/mysql/utils.lua")
 include("libraries/mysql/connect.lua")
@@ -28,6 +26,19 @@ include("libraries/mysql/insert.lua")
 include("libraries/mysql/select.lua")
 include("libraries/mysql/update.lua")
 include("libraries/mysql/delete.lua")
-
 AddCSLuaFile("libraries/anims/anims.lua")
 include("libraries/anims/anims.lua")
+-- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- 
+-- MODULES Utilitaire (utilisation global)
+-- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- 
+AddCSLuaFile("utils/pvar/client_pvar.lua")
+AddCSLuaFile("utils/pgroups/sh_jobs.lua")
+AddCSLuaFile("utils/pgroups/sh_categories.lua")
+AddCSLuaFile("utils/pgroups/sh_config.lua")
+include("utils/pvar/sv_pvar.lua")
+include("utils/pgroups/sh_jobs.lua")
+include("utils/pgroups/sh_categories.lua")
+include("utils/pgroups/sh_config.lua")
+-- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- 
+-- MODULES Principaux (utilisation direct)
+-- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- 
