@@ -1,6 +1,6 @@
 require("mysqloo")
 
-TKRBASE.MySQL = TKRBASE.MySQL or {
+TKRBASE.MySQL = {
 	connections = {}
 }
 

@@ -1,0 +1,1 @@
+-- navig sur le main pour call individuellement et faire de bonne des pages entre le pmanage/gsetting et futur autre

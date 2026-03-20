@@ -16,6 +16,17 @@ Yuu:
 		- refaire toutes les commandes utilitaires (hp, armor, tp, bring, etc...) (server only)
 		- Interface UI / UX avec la lib du gamemode (VGUIElement + Responsivite)
 		(l'idee c'est de rendre la tache plus simple pour un modo/animateur)(ne pas prevoir d'interface pour le niveau 0)
+
+- sv-ranks
+	(sv_utils)
+- sv-config
+- l'ensemble des commandes(commands/set... get... etc...)
+
+
+
+faire que de l'interaction avec F10 et Hook(PlayerSay) pour le moment, pas d'UI
+gestion des cas (nil value, bot, error syntaxe, parsing des commandes, logs console avec MsgC(....))
+
 - module logs (3j/4j)
 		- simple pas besoin d'extra
 		- API/Fonction explortable dans les autres modules

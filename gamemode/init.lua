@@ -1,4 +1,5 @@
-TKRBASE = TKRBASE or {}
+TKRBASE = {}
+TKRBASE.Admin = {}
 -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- 
 -- LIBS du serveur (vitale au fonctionnement du gamemode)
 -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- 
@@ -31,14 +32,47 @@ include("libraries/anims/anims.lua")
 -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- 
 -- MODULES Utilitaire (utilisation global)
 -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- 
-AddCSLuaFile("utils/pvar/client_pvar.lua")
-AddCSLuaFile("utils/pgroups/sh_jobs.lua")
-AddCSLuaFile("utils/pgroups/sh_categories.lua")
-AddCSLuaFile("utils/pgroups/sh_config.lua")
+AddCSLuaFile("utils/pvar/cl_pvar.lua")
+AddCSLuaFile("utils/pgroup/sh_groups.lua")
+AddCSLuaFile("utils/pgroup/sh_config.lua")
 include("utils/pvar/sv_pvar.lua")
-include("utils/pgroups/sh_jobs.lua")
-include("utils/pgroups/sh_categories.lua")
-include("utils/pgroups/sh_config.lua")
+include("utils/pgroup/sh_groups.lua")
+include("utils/pgroup/sh_config.lua")
 -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- 
--- MODULES Principaux (utilisation direct)
+-- MODULES Principaux (utilisation direct) 
 -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- 
+TKRBASE.StorageSystem = "SQLite"
+-- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- 
+if TKRBASE.StorageSystem == "MySQL" then
+	gMySQLAddConnection("test_connection", {
+		host = "",
+		username = "",
+		password = "",
+		database = "",
+		port = 3306
+	}, function(result, error)
+		if result then
+			print("✅ Connexion 'test_connection' ajoutée avec succès!")
+		else
+			print("❌ Erreur ajout connexion:", error)
+		end
+	end)
+
+	gMySQLConnect("test_connection", function(result, error)
+		if result then
+			print("✅ Connexion MySQL établie avec succès!")
+		else
+			print("❌ Erreur connexion MySQL:", error)
+		end
+	end)
+end
+-- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- 
+-- Admin (server only) — sv_commands.lua auto-include les commands/
+-- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- 
+include("modules/admin/sv_config.lua")
+include("modules/admin/sv_utils.lua")
+include("modules/admin/sv_storage.lua")
+include("modules/admin/sv_ranks.lua")
+include("modules/admin/sv_commands.lua")
+include("modules/admin/sv_warns.lua")
+include("modules/admin/sv_bans.lua")

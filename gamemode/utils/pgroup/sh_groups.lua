@@ -1,6 +1,6 @@
-TKRBASE.Factions = TKRBASE.Factions or {}
-TKRBASE.Categories = TKRBASE.Categories or {}
-TKRBASE.Jobs = TKRBASE.Jobs or {}
+TKRBASE.Factions = {}
+TKRBASE.Categories = {}
+TKRBASE.Jobs = {}
 
 function gCreateFaction(name, tbl)
 	tbl = tbl or {}

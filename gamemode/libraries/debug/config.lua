@@ -1,4 +1,4 @@
-TKRBASE.Debug = TKRBASE.Debug or {}
+TKRBASE.Debug = {}
 
 TKRBASE.Debug.Enabled = true
 TKRBASE.Debug.Verbose = true

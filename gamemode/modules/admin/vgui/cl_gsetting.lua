@@ -1,0 +1,1 @@
+-- Global setting (jobs,event,serveur en general)

@@ -1,1 +1,1 @@
---
+TKRBASE = TKRBASE or {}

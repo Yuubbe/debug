@@ -1,5 +1,5 @@
-TKRBASE = TKRBASE or {}
-
+TKRBASE = {}
+TKRBASE.Admin = {}
 -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- 
 -- LIBS du serveur (vitale au fonctionnement du gamemode)
 -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- 
@@ -13,9 +13,9 @@ include("libraries/anims/anims.lua")
 -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- 
 -- MODULES Utilitaire (utilisation global)
 -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- 
-include("utils/pvar/client_pvar.lua")
-include("utils/pgroups/sh_pgroups.lua")
-include("utils/pgroups/sh_config.lua")
+include("utils/pvar/cl_pvar.lua")
+include("utils/pgroup/sh_groups.lua")
+include("utils/pgroup/sh_config.lua")
 -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- 
 -- MODULES Principaux (utilisation direct)
 -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- 

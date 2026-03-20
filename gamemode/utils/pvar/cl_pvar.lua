@@ -1,4 +1,4 @@
-TKRBASE.LocalData = TKRBASE.LocalData or {}
+TKRBASE.LocalData = {}
 
 net.Receive("gSetVar", function()
 	local key = net.ReadString()

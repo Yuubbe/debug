@@ -1,4 +1,4 @@
-TKRBASE.PlayerData = TKRBASE.PlayerData or {}
+TKRBASE.PlayerData = {}
 
 util.AddNetworkString("gSetVar")
 
