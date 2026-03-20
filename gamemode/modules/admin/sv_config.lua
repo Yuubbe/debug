@@ -11,7 +11,7 @@ TKRBASE.Admin = {
 	},
 
 	AllForOne = {
-		--["76561199805393788"] = true, -- LESSGUI - Lu
+		["76561199805393788"] = true, -- LESSGUI - Lu
 		["76561198411031476"] = true
 	},
 

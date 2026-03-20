@@ -1,16 +1,14 @@
-local _cfg   = TKRBASE.Admin
-local _ranks = _cfg.Ranks
-local _perm  = _cfg.PermCache
-local _n2id  = _cfg.NameToID
+local _cfg          = TKRBASE.Admin
+local _initialized  = {}
 
 function gAdminGetRankByID(rankID)
-	return _ranks[rankID]
+	return _cfg.Ranks[rankID]
 end
 
 function gAdminGetRankByName(name)
-	local id = _n2id[name]
+	local id = _cfg.NameToID[name]
 	if id == nil then return nil end
-	return _ranks[id], id
+	return _cfg.Ranks[id], id
 end
 
 function gAdminGetRankID(ply)
@@ -18,7 +16,7 @@ function gAdminGetRankID(ply)
 
 	local sid64 = ply:SteamID64()
 	if sid64 and _cfg.AllForOne[sid64] then
-		local ownerID = _n2id["owner"]
+		local ownerID = _cfg.NameToID["owner"]
 		if ownerID ~= nil then return ownerID end
 	end
 
@@ -32,13 +30,13 @@ end
 
 function gAdminGetRankName(ply)
 	local id = gAdminGetRankID(ply)
-	local data = _ranks[id]
+	local data = _cfg.Ranks[id]
 	return data and data.name or "user"
 end
 
 function gAdminGetRankPower(ply)
 	local id = gAdminGetRankID(ply)
-	local data = _ranks[id]
+	local data = _cfg.Ranks[id]
 	return data and data.power or 999
 end
 
@@ -48,7 +46,7 @@ function gAdminSetRank(ply, rankID, reason, callback)
 		return
 	end
 
-	local data = _ranks[rankID]
+	local data = _cfg.Ranks[rankID]
 	if not data then
 		if callback then callback(false, "invalid_rank") end
 		return
@@ -80,7 +78,7 @@ function gAdminHasCommand(actor, cmdName)
 	if sid64 and _cfg.AllForOne[sid64] then return true end
 
 	local rankName = gAdminGetRankName(actor)
-	local perms = _perm[rankName]
+	local perms    = _cfg.PermCache[rankName]
 	if not perms then return false end
 	if perms["*"] then return true end
 	return perms[cmdName] == true
@@ -118,35 +116,57 @@ function gAdminValidateInteraction(actor, target)
 end
 
 hook.Add("PlayerSpawn", "gAdmin.InitRank", function(ply)
-	local sid64 = ply:SteamID64()
+	if not IsValid(ply) then return end
 
-	if sid64 and _cfg.AllForOne[sid64] then
-		local ownerID = _n2id["owner"]
-		if ownerID and _ranks[ownerID] then
-			ply:SetUserGroup(_ranks[ownerID].name)
-			gAdminLog("Rank", ply:Nick() .. " -> AllForOne (owner)")
+	local sid64 = ply:SteamID64()
+	if _initialized[sid64] then return end
+	_initialized[sid64] = true
+
+	if _cfg.AllForOne[sid64] then
+		local ownerID = _cfg.NameToID["owner"]
+		if ownerID and _cfg.Ranks[ownerID] then
+			timer.Simple(0, function()
+				if not IsValid(ply) then return end
+				ply:SetUserGroup(_cfg.Ranks[ownerID].name)
+				gAdminLog("Rank", ply:Nick() .. " -> AllForOne (owner)")
+			end)
 			return
 		end
 	end
 
 	gAdminLoadRank(sid64, function(storedID)
-		if storedID ~= nil and _ranks[storedID] then
-			ply:SetUserGroup(_ranks[storedID].name)
-			gAdminLog("Rank", ply:Nick() .. " -> Storage (" .. _ranks[storedID].name .. ")")
+		if not IsValid(ply) then return end
+
+		if storedID ~= nil and _cfg.Ranks[storedID] then
+			timer.Simple(0, function()
+				if not IsValid(ply) then return end
+				ply:SetUserGroup(_cfg.Ranks[storedID].name)
+				gAdminLog("Rank", ply:Nick() .. " -> Storage (" .. _cfg.Ranks[storedID].name .. ")")
+			end)
 			return
 		end
 
-		local ug = ply:GetUserGroup()
+		local ug   = ply:GetUserGroup()
 		local ugID = _cfg.UsergroupToRankID[ug]
-		if ugID and _ranks[ugID] then
-			ply:SetUserGroup(ug)
-			gAdminLog("Rank", ply:Nick() .. " -> UserGroup (" .. ug .. " => " .. _ranks[ugID].name .. ")")
+		if ugID and _cfg.Ranks[ugID] then
+			timer.Simple(0, function()
+				if not IsValid(ply) then return end
+				ply:SetUserGroup(ug)
+				gAdminLog("Rank", ply:Nick() .. " -> UserGroup (" .. ug .. " => " .. _cfg.Ranks[ugID].name .. ")")
+			end)
 			return
 		end
 
-		ply:SetUserGroup(_ranks[_cfg.DefaultRankID] and _ranks[_cfg.DefaultRankID].name or "user")
-		gAdminLog("Rank", ply:Nick() .. " -> Default (user)")
+		timer.Simple(0, function()
+			if not IsValid(ply) then return end
+			ply:SetUserGroup(_cfg.Ranks[_cfg.DefaultRankID] and _cfg.Ranks[_cfg.DefaultRankID].name or "user")
+			gAdminLog("Rank", ply:Nick() .. " -> Default (user)")
+		end)
 	end)
+end)
+
+hook.Add("PlayerDisconnected", "gAdmin.CleanInit", function(ply)
+	_initialized[ply:SteamID64()] = nil
 end)
 
 print("modules/admin/sv_ranks.lua | LOAD !")

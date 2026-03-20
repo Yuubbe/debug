@@ -55,7 +55,7 @@ if TKRBASE.StorageSystem == "SQLite" then
 			if callback then callback(nil) end
 			return
 		end
-		local result, _ = gSQLiteSelect("tkr_admin_ranks", { "rank_id" }, { steamid64 = steamid64 })
+		local result = sql.Query("SELECT rank_id FROM tkr_admin_ranks WHERE steamid64 = " .. sql.SQLStr(steamid64))
 		if result and result[1] then
 			if callback then callback(tonumber(result[1].rank_id)) end
 			return
@@ -68,21 +68,18 @@ if TKRBASE.StorageSystem == "SQLite" then
 			if callback then callback(false) end
 			return
 		end
-		local existing, _ = gSQLiteSelect("tkr_admin_ranks", { "steamid64" }, { steamid64 = steamid64 })
+		local existing = sql.Query("SELECT steamid64 FROM tkr_admin_ranks WHERE steamid64 = " .. sql.SQLStr(steamid64))
 		if existing and existing[1] then
-			local result, _ = gSQLiteUpdate("tkr_admin_ranks", {
-				rank_id = rankID,
-				set_by  = setBy or "system",
-				set_at  = os.time(),
-			}, { steamid64 = steamid64 })
+			local result = sql.Query(string.format(
+				"UPDATE tkr_admin_ranks SET rank_id = %d, set_by = %s, set_at = %d WHERE steamid64 = %s",
+				rankID, sql.SQLStr(setBy or "system"), os.time(), sql.SQLStr(steamid64)
+			))
 			if callback then callback(result ~= false) end
 		else
-			local result, _ = gSQLiteInsert("tkr_admin_ranks", {
-				steamid64 = steamid64,
-				rank_id   = rankID,
-				set_by    = setBy or "system",
-				set_at    = os.time(),
-			})
+			local result = sql.Query(string.format(
+				"INSERT INTO tkr_admin_ranks (steamid64, rank_id, set_by, set_at) VALUES (%s, %d, %s, %d)",
+				sql.SQLStr(steamid64), rankID, sql.SQLStr(setBy or "system"), os.time()
+			))
 			if callback then callback(result ~= false) end
 		end
 	end
@@ -92,7 +89,7 @@ if TKRBASE.StorageSystem == "SQLite" then
 			if callback then callback(false) end
 			return
 		end
-		local result, _ = gSQLiteDelete("tkr_admin_ranks", { steamid64 = steamid64 })
+		local result = sql.Query("DELETE FROM tkr_admin_ranks WHERE steamid64 = " .. sql.SQLStr(steamid64))
 		if callback then callback(result ~= false) end
 	end
 
@@ -101,12 +98,10 @@ if TKRBASE.StorageSystem == "SQLite" then
 			if callback then callback(false) end
 			return
 		end
-		local result, _ = gSQLiteInsert("tkr_admin_warns", {
-			steamid64 = steamid64,
-			reason    = reason or "",
-			given_by  = givenBy or "system",
-			given_at  = os.time(),
-		})
+		local result = sql.Query(string.format(
+			"INSERT INTO tkr_admin_warns (steamid64, reason, given_by, given_at) VALUES (%s, %s, %s, %d)",
+			sql.SQLStr(steamid64), sql.SQLStr(reason or ""), sql.SQLStr(givenBy or "system"), os.time()
+		))
 		if callback then callback(result ~= false) end
 	end
 
@@ -115,7 +110,7 @@ if TKRBASE.StorageSystem == "SQLite" then
 			if callback then callback({}) end
 			return
 		end
-		local result, _ = gSQLiteSelect("tkr_admin_warns", nil, { steamid64 = steamid64 })
+		local result = sql.Query("SELECT * FROM tkr_admin_warns WHERE steamid64 = " .. sql.SQLStr(steamid64))
 		if callback then callback(result or {}) end
 	end
 
@@ -124,7 +119,7 @@ if TKRBASE.StorageSystem == "SQLite" then
 			if callback then callback(false) end
 			return
 		end
-		local result, _ = gSQLiteDelete("tkr_admin_warns", { steamid64 = steamid64 })
+		local result = sql.Query("DELETE FROM tkr_admin_warns WHERE steamid64 = " .. sql.SQLStr(steamid64))
 		if callback then callback(result ~= false) end
 	end
 
@@ -134,23 +129,18 @@ if TKRBASE.StorageSystem == "SQLite" then
 			return
 		end
 		local expiresAt = duration and duration > 0 and (os.time() + duration) or 0
-		local existing, _ = gSQLiteSelect("tkr_admin_bans", { "steamid64" }, { steamid64 = steamid64 })
+		local existing  = sql.Query("SELECT steamid64 FROM tkr_admin_bans WHERE steamid64 = " .. sql.SQLStr(steamid64))
 		if existing and existing[1] then
-			local result, _ = gSQLiteUpdate("tkr_admin_bans", {
-				reason     = reason or "",
-				banned_by  = bannedBy or "system",
-				banned_at  = os.time(),
-				expires_at = expiresAt,
-			}, { steamid64 = steamid64 })
+			local result = sql.Query(string.format(
+				"UPDATE tkr_admin_bans SET reason = %s, banned_by = %s, banned_at = %d, expires_at = %d WHERE steamid64 = %s",
+				sql.SQLStr(reason or ""), sql.SQLStr(bannedBy or "system"), os.time(), expiresAt, sql.SQLStr(steamid64)
+			))
 			if callback then callback(result ~= false) end
 		else
-			local result, _ = gSQLiteInsert("tkr_admin_bans", {
-				steamid64  = steamid64,
-				reason     = reason or "",
-				banned_by  = bannedBy or "system",
-				banned_at  = os.time(),
-				expires_at = expiresAt,
-			})
+			local result = sql.Query(string.format(
+				"INSERT INTO tkr_admin_bans (steamid64, reason, banned_by, banned_at, expires_at) VALUES (%s, %s, %s, %d, %d)",
+				sql.SQLStr(steamid64), sql.SQLStr(reason or ""), sql.SQLStr(bannedBy or "system"), os.time(), expiresAt
+			))
 			if callback then callback(result ~= false) end
 		end
 	end
@@ -160,7 +150,7 @@ if TKRBASE.StorageSystem == "SQLite" then
 			if callback then callback(nil) end
 			return
 		end
-		local result, _ = gSQLiteSelect("tkr_admin_bans", nil, { steamid64 = steamid64 })
+		local result = sql.Query("SELECT * FROM tkr_admin_bans WHERE steamid64 = " .. sql.SQLStr(steamid64))
 		if result and result[1] then
 			if callback then callback(result[1]) end
 			return
@@ -173,17 +163,16 @@ if TKRBASE.StorageSystem == "SQLite" then
 			if callback then callback(false) end
 			return
 		end
-		local result, _ = gSQLiteDelete("tkr_admin_bans", { steamid64 = steamid64 })
+		local result = sql.Query("DELETE FROM tkr_admin_bans WHERE steamid64 = " .. sql.SQLStr(steamid64))
 		if callback then callback(result ~= false) end
 	end
 
 	function gAdminSaveLog(scope, msg, callback)
 		if not TKRBASE.Admin.Logs.Enabled then return end
-		local result, _ = gSQLiteInsert("tkr_admin_logs", {
-			scope      = scope or "",
-			msg        = msg or "",
-			created_at = os.time(),
-		})
+		local result = sql.Query(string.format(
+			"INSERT INTO tkr_admin_logs (scope, msg, created_at) VALUES (%s, %s, %d)",
+			sql.SQLStr(scope or ""), sql.SQLStr(msg or ""), os.time()
+		))
 		if callback then callback(result ~= false) end
 	end
 
