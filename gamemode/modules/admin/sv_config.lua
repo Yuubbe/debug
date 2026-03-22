@@ -28,9 +28,9 @@ TKRBASE.Admin = {
 	Permissions = {
 		["owner"]     = { "*" },
 		["headadmin"] = { "*" },
-		["admin"]     = { "sethp", "setarmor", "gethp", "getarmor", "tp", "goto", "bring", "kick", "slay", "respawn", "god", "noclip", "freeze", "cloak", "setrank", "removerank", "warn", "warnings", "clearwarnings", "ban", "unban", "mute", "unmute", "spectate", "setmodel", "strip", "help" },
-		["moderator"] = { "gethp", "getarmor", "tp", "goto", "bring", "kick", "freeze", "warn", "warnings", "mute", "unmute", "help" },
-		["helper"]    = { "gethp", "getarmor", "warn", "warnings", "help" },
+		["admin"]     = { "admin", "sethp", "setarmor", "gethp", "getarmor", "tp", "goto", "bring", "kick", "slay", "respawn", "god", "noclip", "freeze", "cloak", "setrank", "removerank", "warn", "warnings", "clearwarnings", "ban", "unban", "mute", "unmute", "spectate", "setmodel", "strip", "help" },
+		["moderator"] = { "admin", "gethp", "getarmor", "tp", "goto", "bring", "kick", "freeze", "warn", "warnings", "mute", "unmute", "help" },
+		["helper"]    = { "admin", "gethp", "getarmor", "warn", "warnings", "help" },
 		["user"]      = { "help" },
 	},
 

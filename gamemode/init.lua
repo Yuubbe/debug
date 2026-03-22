@@ -9,6 +9,14 @@ AddCSLuaFile("libraries/resp/responsive.lua")
 AddCSLuaFile("libraries/resp/panel.lua")
 AddCSLuaFile("libraries/resp/materials.lua")
 AddCSLuaFile("libraries/resp/anims.lua")
+AddCSLuaFile("libraries/vgui/config.lua")
+AddCSLuaFile("libraries/vgui/debug.lua")
+AddCSLuaFile("libraries/vgui/base/frame.lua")
+AddCSLuaFile("libraries/vgui/base/panel.lua")
+AddCSLuaFile("libraries/vgui/base/label.lua")
+AddCSLuaFile("libraries/vgui/inputs/button.lua")
+AddCSLuaFile("libraries/vgui/inputs/textentry.lua")
+AddCSLuaFile("libraries/vgui/inputs/checkbox.lua")
 AddCSLuaFile("libraries/debug/config.lua")
 AddCSLuaFile("libraries/debug/utils.lua")
 include("libraries/debug/config.lua")
@@ -74,5 +82,24 @@ include("modules/admin/sv_utils.lua")
 include("modules/admin/sv_storage.lua")
 include("modules/admin/sv_ranks.lua")
 include("modules/admin/sv_commands.lua")
+include("modules/admin/sv_admin_net.lua")
+AddCSLuaFile("modules/admin/cl_admin_ui.lua")
 include("modules/admin/sv_warns.lua")
 include("modules/admin/sv_bans.lua")
+-- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- 
+-- Thirdperson (client only)
+-- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- 
+AddCSLuaFile("modules/thirdperson/cl_thirdperson.lua")
+AddCSLuaFile("modules/thirdperson/cl_thirdperson_ui.lua")
+-- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- 
+-- Logs (client only)
+-- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- 
+AddCSLuaFile("modules/logs/cl_logs_ui.lua")
+-- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- 
+-- Warns — liste globale (client only)
+-- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- 
+AddCSLuaFile("modules/warns/cl_warns_ui.lua")
+-- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- 
+-- Context menu (client only)
+-- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- 
+AddCSLuaFile("modules/contextmenu/cl_contextmenu.lua")

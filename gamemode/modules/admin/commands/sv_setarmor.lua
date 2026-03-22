@@ -10,7 +10,8 @@ gAdminRegisterCommand("setarmor", {
 		local target = gAdminResolveAndValidate(actor, args[1])
 		if not target then return end
 
-		local value = gAdminParseNumber(args[2], 0, 100)
+		local cfg   = TKRBASE.Admin.SetArmor
+		local value = gAdminParseNumber(args[2], cfg.Min, cfg.Max)
 		if not value then
 			gAdminReply(actor, gAdminErrorMsg("invalid_number"))
 			return
