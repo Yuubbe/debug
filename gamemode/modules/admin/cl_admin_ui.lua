@@ -1,20 +1,7 @@
-local _panel   = nil
-local _perms   = {}
-local _selSID  = nil
-local _entries = {}
+-- Panneau admin : état sur l'instance VGUI (vgui.Register), pas en locals fichier.
+-- Un seul pointeur pour les nets (évite de scanner l'arbre VGUI).
 
-local _rightBody   = nil
-local _infoName    = nil
-local _infoRank    = nil
-local _infoHP      = nil
-local _infoArmor   = nil
-local _infoAlive   = nil
-local _actionsWrap = nil
-local _statusBar   = nil
-local _warnsScroll = nil
-local _warnsHeader = nil
-local _warnsData   = {}
-local _warnsClear  = nil
+local _activeAdminPanel = nil
 
 local RANK_COLORS = {
 	owner     = Color(100, 100, 255),
@@ -66,7 +53,7 @@ local INPUT_CMDS = {
 	{ name = "ban",      label = "Ban",    placeholder = "raison 1h/1j",  btn = "Ban",  color = "danger" },
 }
 
--- ── Helpers ──────────────────────────────────────────────
+-- ── Helpers sans état panel ──────────────────────────────
 
 local function gAdminGetRankName(ply)
 	if not IsValid(ply) then return "?" end
@@ -85,72 +72,6 @@ local function gAdminSendCmd(cmdName, targetSID, extra)
 	net.SendToServer()
 end
 
-local function gAdminHasPerm(cmd)
-	return _perms[cmd] == true
-end
-
-local function gAdminStatusMsg(text)
-	if not IsValid(_statusBar) then return end
-	_statusBar:gSetText(text)
-end
-
-local function gAdminGetSelectedPly()
-	if not _selSID then return nil end
-	for _, ply in ipairs(player.GetAll()) do
-		if ply:SteamID64() == _selSID then return ply end
-	end
-	return nil
-end
-
-local function gAdminRequestWarns(sid64)
-	if not sid64 or not gAdminHasPerm("warnings") then return end
-	net.Start("gAdmin.RequestWarns")
-	net.WriteString(sid64)
-	net.SendToServer()
-end
-
--- ── Player info update ───────────────────────────────────
-
-local function gAdminUpdateInfo()
-	local ply = gAdminGetSelectedPly()
-
-	if not ply or not IsValid(ply) then
-		if IsValid(_infoName)  then _infoName:gSetText("Aucun joueur sélectionné") end
-		if IsValid(_infoRank)  then _infoRank:gSetText("")  end
-		if IsValid(_infoHP)    then _infoHP:gSetText("")    end
-		if IsValid(_infoArmor) then _infoArmor:gSetText("") end
-		if IsValid(_infoAlive) then _infoAlive:gSetText("") end
-		return
-	end
-
-	local suffix = ply == LocalPlayer() and " (moi)" or ""
-
-	if IsValid(_infoName) then
-		_infoName:gSetText(ply:Nick() .. suffix)
-	end
-
-	if IsValid(_infoRank) then
-		local rk = gAdminGetRankName(ply)
-		_infoRank:gSetText(rk)
-		_infoRank:gSetColor(gAdminGetRankColor(ply))
-	end
-
-	if IsValid(_infoHP) then
-		_infoHP:gSetText("Vie : " .. ply:Health() .. " / " .. ply:GetMaxHealth())
-	end
-
-	if IsValid(_infoArmor) then
-		_infoArmor:gSetText("Armure : " .. ply:Armor())
-	end
-
-	if IsValid(_infoAlive) then
-		_infoAlive:gSetText(ply:Alive() and "Vivant" or "Mort")
-		_infoAlive:gSetColor(ply:Alive() and gTheme("success") or gTheme("danger"))
-	end
-end
-
--- ── Scroll bar styling ───────────────────────────────────
-
 local function gAdminStyleScrollBar(sbar)
 	sbar:SetWide(gRespX(4))
 	sbar:SetHideButtons(true)
@@ -163,22 +84,122 @@ local function gAdminStyleScrollBar(sbar)
 	end
 end
 
--- ── Warns panel builder ─────────────────────────────────
+-- ── VGUI : gAdminPanel (hérite gFrame) ───────────────────
 
-local function gAdminBuildWarns()
-	if not IsValid(_warnsScroll) then return end
-	_warnsScroll:Clear()
+local PANEL = {}
 
-	if IsValid(_warnsHeader) then
-		_warnsHeader:gSetText("Avertissements (" .. #_warnsData .. ")")
+function PANEL:Init()
+	local gFrameTbl = vgui.GetControlTable("gFrame")
+	if gFrameTbl and gFrameTbl.Init then
+		gFrameTbl.Init(self)
 	end
 
-	if IsValid(_warnsClear) then
-		_warnsClear:SetVisible(#_warnsData > 0 and gAdminHasPerm("clearwarnings"))
+	self._perms       = {}
+	self._selSID      = nil
+	self._entries     = {}
+	self._warnsData   = {}
+	self._nextInfoAt  = 0
+
+	self._playerScroll = nil
+	self._searchEntry  = nil
+	self._rightBody    = nil
+	self._infoName     = nil
+	self._infoRank     = nil
+	self._infoHP       = nil
+	self._infoArmor    = nil
+	self._infoAlive    = nil
+	self._actionsWrap  = nil
+	self._statusBar    = nil
+	self._warnsScroll  = nil
+	self._warnsHeader  = nil
+	self._warnsClear   = nil
+
+	_activeAdminPanel = self
+end
+
+function PANEL:OnRemove()
+	if _activeAdminPanel == self then
+		_activeAdminPanel = nil
+	end
+end
+
+function PANEL:gAdminHasPerm(cmd)
+	return self._perms[cmd] == true
+end
+
+function PANEL:gAdminStatusMsg(text)
+	if IsValid(self._statusBar) then
+		self._statusBar:gSetText(text)
+	end
+end
+
+function PANEL:gAdminGetSelectedPly()
+	if not self._selSID then return nil end
+	for _, ply in ipairs(player.GetAll()) do
+		if ply:SteamID64() == self._selSID then return ply end
+	end
+	return nil
+end
+
+function PANEL:gAdminRequestWarns(sid64)
+	if not sid64 or not self:gAdminHasPerm("warnings") then return end
+	net.Start("gAdmin.RequestWarns")
+	net.WriteString(sid64)
+	net.SendToServer()
+end
+
+function PANEL:gAdminUpdateInfo()
+	local ply = self:gAdminGetSelectedPly()
+
+	if not ply or not IsValid(ply) then
+		if IsValid(self._infoName)  then self._infoName:gSetText("Aucun joueur sélectionné") end
+		if IsValid(self._infoRank)  then self._infoRank:gSetText("")  end
+		if IsValid(self._infoHP)    then self._infoHP:gSetText("")    end
+		if IsValid(self._infoArmor) then self._infoArmor:gSetText("") end
+		if IsValid(self._infoAlive) then self._infoAlive:gSetText("") end
+		return
 	end
 
-	if #_warnsData == 0 then
-		local empty = vgui.Create("gLabel", _warnsScroll)
+	local suffix = ply == LocalPlayer() and " (moi)" or ""
+
+	if IsValid(self._infoName) then
+		self._infoName:gSetText(ply:Nick() .. suffix)
+	end
+
+	if IsValid(self._infoRank) then
+		local rk = gAdminGetRankName(ply)
+		self._infoRank:gSetText(rk)
+		self._infoRank:gSetColor(gAdminGetRankColor(ply))
+	end
+
+	if IsValid(self._infoHP) then
+		self._infoHP:gSetText("Vie : " .. ply:Health() .. " / " .. ply:GetMaxHealth())
+	end
+
+	if IsValid(self._infoArmor) then
+		self._infoArmor:gSetText("Armure : " .. ply:Armor())
+	end
+
+	if IsValid(self._infoAlive) then
+		self._infoAlive:gSetText(ply:Alive() and "Vivant" or "Mort")
+		self._infoAlive:gSetColor(ply:Alive() and gTheme("success") or gTheme("danger"))
+	end
+end
+
+function PANEL:gAdminBuildWarns()
+	if not IsValid(self._warnsScroll) then return end
+	self._warnsScroll:Clear()
+
+	if IsValid(self._warnsHeader) then
+		self._warnsHeader:gSetText("Avertissements (" .. #self._warnsData .. ")")
+	end
+
+	if IsValid(self._warnsClear) then
+		self._warnsClear:SetVisible(#self._warnsData > 0 and self:gAdminHasPerm("clearwarnings"))
+	end
+
+	if #self._warnsData == 0 then
+		local empty = vgui.Create("gLabel", self._warnsScroll)
 		empty:Dock(TOP)
 		empty:SetTall(gRespY(28))
 		empty:DockMargin(gRespX(8), gRespY(4), 0, 0)
@@ -189,8 +210,8 @@ local function gAdminBuildWarns()
 		return
 	end
 
-	for i, w in ipairs(_warnsData) do
-		local row = vgui.Create("gPanel", _warnsScroll)
+	for i, w in ipairs(self._warnsData) do
+		local row = vgui.Create("gPanel", self._warnsScroll)
 		row:Dock(TOP)
 		row:DockMargin(0, 0, 0, gRespY(2))
 		row:SetTall(gRespY(42))
@@ -217,12 +238,10 @@ local function gAdminBuildWarns()
 	end
 end
 
--- ── Player list ──────────────────────────────────────────
+function PANEL:gAdminSelectPlayer(sid64)
+	self._selSID = sid64
 
-local function gAdminSelectPlayer(sid64)
-	_selSID = sid64
-
-	for sid, entry in pairs(_entries) do
+	for sid, entry in pairs(self._entries) do
 		if IsValid(entry) then
 			if sid == sid64 then
 				entry:gSetBgColor(gTheme("accent"), 40)
@@ -232,22 +251,23 @@ local function gAdminSelectPlayer(sid64)
 		end
 	end
 
-	gAdminUpdateInfo()
+	self:gAdminUpdateInfo()
 
-	_warnsData = {}
-	gAdminBuildWarns()
-	gAdminRequestWarns(sid64)
+	self._warnsData = {}
+	self:gAdminBuildWarns()
+	self:gAdminRequestWarns(sid64)
 end
 
-local function gAdminBuildPlayerList(scroll, searchQ)
+function PANEL:gAdminBuildPlayerList(scroll, searchQ)
 	if not IsValid(scroll) then return end
 
 	scroll:Clear()
-	_entries = {}
+	self._entries = {}
 
 	local q     = string.lower(searchQ or "")
 	local plist = player.GetAll()
 	local lp    = LocalPlayer()
+	local pnl   = self
 
 	table.sort(plist, function(a, b)
 		if a == lp then return true end
@@ -273,8 +293,8 @@ local function gAdminBuildPlayerList(scroll, searchQ)
 		entry:SetCursor("hand")
 
 		entry._radius  = gThemeRadius("sm")
-		entry._bgColor = sid64 == _selSID and gTheme("accent") or gTheme("elevated")
-		entry._bgAlpha = sid64 == _selSID and 40 or gThemeAlpha("mid")
+		entry._bgColor = sid64 == self._selSID and gTheme("accent") or gTheme("elevated")
+		entry._bgAlpha = sid64 == self._selSID and 40 or gThemeAlpha("mid")
 		entry._hover   = 0
 
 		function entry:gSetBgColor(c, a)
@@ -300,7 +320,7 @@ local function gAdminBuildPlayerList(scroll, searchQ)
 		end
 
 		function entry:OnMousePressed(code)
-			if code == MOUSE_LEFT then gAdminSelectPlayer(sid64) end
+			if code == MOUSE_LEFT then pnl:gAdminSelectPlayer(sid64) end
 		end
 
 		local dot = vgui.Create("DPanel", entry)
@@ -323,13 +343,11 @@ local function gAdminBuildPlayerList(scroll, searchQ)
 		lbl:gSetText(nick)
 		lbl:SetMouseInputEnabled(false)
 
-		_entries[sid64] = entry
+		self._entries[sid64] = entry
 	end
 end
 
--- ── Action buttons builder ───────────────────────────────
-
-local function gAdminBuildActions(parent)
+function PANEL:gAdminBuildActions(parent)
 	if not IsValid(parent) then return end
 	parent:Clear()
 
@@ -337,11 +355,12 @@ local function gAdminBuildActions(parent)
 	local padY = 6
 	local btnW = 100
 	local btnH = 30
+	local pnl  = self
 
 	for _, grp in ipairs(CMD_GROUPS) do
 		local hasCmds = false
 		for _, cmd in ipairs(grp.cmds) do
-			if gAdminHasPerm(cmd.name) then hasCmds = true break end
+			if pnl:gAdminHasPerm(cmd.name) then hasCmds = true break end
 		end
 		if not hasCmds then continue end
 
@@ -363,7 +382,7 @@ local function gAdminBuildActions(parent)
 
 		local ox = 0
 		for _, cmd in ipairs(grp.cmds) do
-			if not gAdminHasPerm(cmd.name) then continue end
+			if not pnl:gAdminHasPerm(cmd.name) then continue end
 
 			local btn = vgui.Create("gButton", row)
 			btn:SetPos(gRespX(ox), 0)
@@ -374,13 +393,13 @@ local function gAdminBuildActions(parent)
 
 			local cname = cmd.name
 			btn.DoClick = function()
-				local ply = gAdminGetSelectedPly()
+				local ply = pnl:gAdminGetSelectedPly()
 				if not ply then
-					gAdminStatusMsg("Sélectionne un joueur d'abord.")
+					pnl:gAdminStatusMsg("Sélectionne un joueur d'abord.")
 					return
 				end
 				gAdminSendCmd(cname, ply:SteamID64())
-				gAdminStatusMsg("!" .. cname .. " → " .. ply:Nick())
+				pnl:gAdminStatusMsg("!" .. cname .. " → " .. ply:Nick())
 			end
 
 			ox = ox + btnW + padX
@@ -389,7 +408,7 @@ local function gAdminBuildActions(parent)
 
 	local hasInputCmds = false
 	for _, ic in ipairs(INPUT_CMDS) do
-		if gAdminHasPerm(ic.name) then hasInputCmds = true break end
+		if pnl:gAdminHasPerm(ic.name) then hasInputCmds = true break end
 	end
 
 	if not hasInputCmds then return end
@@ -410,7 +429,7 @@ local function gAdminBuildActions(parent)
 	local inputH  = 30
 
 	for _, ic in ipairs(INPUT_CMDS) do
-		if not gAdminHasPerm(ic.name) then continue end
+		if not pnl:gAdminHasPerm(ic.name) then continue end
 
 		local irow = vgui.Create("DPanel", parent)
 		irow:SetPaintBackground(false)
@@ -443,18 +462,18 @@ local function gAdminBuildActions(parent)
 
 		local cname = ic.name
 		btn.DoClick = function()
-			local ply = gAdminGetSelectedPly()
+			local ply = pnl:gAdminGetSelectedPly()
 			if not ply then
-				gAdminStatusMsg("Sélectionne un joueur d'abord.")
+				pnl:gAdminStatusMsg("Sélectionne un joueur d'abord.")
 				return
 			end
 			local val = te:GetValue():Trim()
 			if val == "" then
-				gAdminStatusMsg("Valeur requise pour !" .. cname)
+				pnl:gAdminStatusMsg("Valeur requise pour !" .. cname)
 				return
 			end
 			gAdminSendCmd(cname, ply:SteamID64(), val)
-			gAdminStatusMsg("!" .. cname .. " " .. val .. " → " .. ply:Nick())
+			pnl:gAdminStatusMsg("!" .. cname .. " " .. val .. " → " .. ply:Nick())
 		end
 
 		te.OnEnter = function()
@@ -463,11 +482,24 @@ local function gAdminBuildActions(parent)
 	end
 end
 
--- ── Main panel builder ───────────────────────────────────
+function PANEL:SetPerms(perms)
+	self._perms = perms or {}
+end
 
-local function gAdminBuildPanel()
-	if IsValid(_panel) then _panel:Remove() end
+function PANEL:Think()
+	local gFrameTbl = vgui.GetControlTable("gFrame")
+	if gFrameTbl and gFrameTbl.Think then
+		gFrameTbl.Think(self)
+	end
 
+	local now = RealTime()
+	if now >= self._nextInfoAt then
+		self._nextInfoAt = now + 0.25
+		self:gAdminUpdateInfo()
+	end
+end
+
+function PANEL:BuildLayout()
 	local W, H       = 920, 620
 	local HEADER_H   = 40
 	local SIDEBAR_W  = 230
@@ -478,32 +510,19 @@ local function gAdminBuildPanel()
 
 	local hc = gTheme("surface")
 
-	_panel = vgui.Create("gFrame")
-	_panel:gSetSize(W, H)
-	_panel:gCenter()
-	_panel:gSetRadius(gThemeRadius("lg"))
-	_panel:gSetBgColor(gTheme("bg"), gThemeAlpha("full"))
-	_panel:gSetHeader(true, hc, gThemeAlpha("high"), HEADER_H)
-	_panel:gSetTitle("Panneau Admin", "OxaniumMedium", 15, gContrastText(hc), TEXT_ALIGN_CENTER)
-	_panel:gSetCloseButton(true, "OxaniumLight", 20, gContrastText(hc, 160))
-	_panel:gSetDraggable(true)
-	_panel:gSetBorder(true, gThemeAlpha("border"))
-	_panel:gOpen(0.15)
-
-	local _nextUpdate = 0
-	local oldThink = _panel.Think
-	_panel.Think = function(self)
-		if oldThink then oldThink(self) end
-		local now = RealTime()
-		if now >= _nextUpdate then
-			_nextUpdate = now + 0.25
-			gAdminUpdateInfo()
-		end
-	end
+	self:gSetSize(W, H)
+	self:gCenter()
+	self:gSetRadius(gThemeRadius("lg"))
+	self:gSetBgColor(gTheme("bg"), gThemeAlpha("full"))
+	self:gSetHeader(true, hc, gThemeAlpha("high"), HEADER_H)
+	self:gSetTitle("Panneau Admin", "OxaniumMedium", 15, gContrastText(hc), TEXT_ALIGN_CENTER)
+	self:gSetCloseButton(true, "OxaniumLight", 20, gContrastText(hc, 160))
+	self:gSetDraggable(true)
+	self:gSetBorder(true, gThemeAlpha("border"))
 
 	-- ── Sidebar ──────────────────────────────────────────
 
-	local sidebar = vgui.Create("gPanel", _panel)
+	local sidebar = vgui.Create("gPanel", self)
 	sidebar:SetPos(0, gRespY(HEADER_H))
 	sidebar:gSetSize(SIDEBAR_W, H - HEADER_H)
 	sidebar:gSetBgColor(gTheme("surface"), gThemeAlpha("high"))
@@ -517,6 +536,7 @@ local function gAdminBuildPanel()
 	search:gSetFont("OxaniumRegular", 12)
 	search:gSetPlaceholder("Rechercher un joueur...")
 	search:gSetRadius(gThemeRadius("sm"))
+	self._searchEntry = search
 
 	local refreshBtn = vgui.Create("gButton", sidebar)
 	refreshBtn:Dock(BOTTOM)
@@ -533,35 +553,36 @@ local function gAdminBuildPanel()
 	local scroll = vgui.Create("DScrollPanel", scrollWrap)
 	scroll:Dock(FILL)
 	gAdminStyleScrollBar(scroll:GetVBar())
+	self._playerScroll = scroll
 
-	gAdminBuildPlayerList(scroll, "")
+	local pnl = self
+	self:gAdminBuildPlayerList(scroll, "")
 
 	search.OnChange = function()
-		gAdminBuildPlayerList(scroll, search:GetValue())
+		pnl:gAdminBuildPlayerList(scroll, search:GetValue())
 	end
 
 	refreshBtn.DoClick = function()
-		gAdminBuildPlayerList(scroll, search:GetValue())
-		gAdminUpdateInfo()
-		if _selSID then gAdminRequestWarns(_selSID) end
-		gAdminStatusMsg("Liste rafraîchie.")
+		pnl:gAdminBuildPlayerList(scroll, search:GetValue())
+		pnl:gAdminUpdateInfo()
+		if pnl._selSID then pnl:gAdminRequestWarns(pnl._selSID) end
+		pnl:gAdminStatusMsg("Liste rafraîchie.")
 	end
 
-	-- ── Right panel (main scroll) ────────────────────────
+	-- ── Right panel ──────────────────────────────────────
 
-	local rightScroll = vgui.Create("DScrollPanel", _panel)
+	local rightScroll = vgui.Create("DScrollPanel", self)
 	rightScroll:SetPos(gRespX(SIDEBAR_W), gRespY(HEADER_H))
 	rightScroll:SetSize(gRespX(CONTENT_W), gRespY(CONTENT_H))
 	gAdminStyleScrollBar(rightScroll:GetVBar())
 
-	_rightBody = vgui.Create("DPanel", rightScroll)
-	_rightBody:SetPaintBackground(false)
-	_rightBody:Dock(TOP)
-	_rightBody:DockPadding(gRespX(PAD + 4), gRespY(PAD), gRespX(PAD + 4), gRespY(PAD))
+	self._rightBody = vgui.Create("DPanel", rightScroll)
+	self._rightBody:SetPaintBackground(false)
+	self._rightBody:Dock(TOP)
+	self._rightBody:DockPadding(gRespX(PAD + 4), gRespY(PAD), gRespX(PAD + 4), gRespY(PAD))
 
-	-- ── Player info ──────────────────────────────────────
-
-	local infoWrap = vgui.Create("gPanel", _rightBody)
+	-- Player info
+	local infoWrap = vgui.Create("gPanel", self._rightBody)
 	infoWrap:Dock(TOP)
 	infoWrap:SetTall(gRespY(82))
 	infoWrap:gSetBgColor(gTheme("surface"), gThemeAlpha("high"))
@@ -569,13 +590,13 @@ local function gAdminBuildPanel()
 	infoWrap:gSetBorder(true, gTheme("border"), gThemeAlpha("border"))
 	infoWrap:DockPadding(gRespX(12), gRespY(8), gRespX(12), gRespY(8))
 
-	_infoName = vgui.Create("gLabel", infoWrap)
-	_infoName:Dock(TOP)
-	_infoName:SetTall(gRespY(20))
-	_infoName:gSetFont("OxaniumSemiBold", 15)
-	_infoName:gSetColor(gTheme("text"))
-	_infoName:gSetAlign(TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
-	_infoName:gSetText("Aucun joueur sélectionné")
+	self._infoName = vgui.Create("gLabel", infoWrap)
+	self._infoName:Dock(TOP)
+	self._infoName:SetTall(gRespY(20))
+	self._infoName:gSetFont("OxaniumSemiBold", 15)
+	self._infoName:gSetColor(gTheme("text"))
+	self._infoName:gSetAlign(TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
+	self._infoName:gSetText("Aucun joueur sélectionné")
 
 	local infoRow = vgui.Create("DPanel", infoWrap)
 	infoRow:SetPaintBackground(false)
@@ -583,21 +604,21 @@ local function gAdminBuildPanel()
 	infoRow:SetTall(gRespY(16))
 	infoRow:DockMargin(0, gRespY(3), 0, 0)
 
-	_infoRank = vgui.Create("gLabel", infoRow)
-	_infoRank:SetPos(0, 0)
-	_infoRank:SetSize(gRespX(120), gRespY(16))
-	_infoRank:gSetFont("OxaniumMedium", 12)
-	_infoRank:gSetColor(gTheme("textDim"))
-	_infoRank:gSetAlign(TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
-	_infoRank:gSetText("")
+	self._infoRank = vgui.Create("gLabel", infoRow)
+	self._infoRank:SetPos(0, 0)
+	self._infoRank:SetSize(gRespX(120), gRespY(16))
+	self._infoRank:gSetFont("OxaniumMedium", 12)
+	self._infoRank:gSetColor(gTheme("textDim"))
+	self._infoRank:gSetAlign(TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
+	self._infoRank:gSetText("")
 
-	_infoAlive = vgui.Create("gLabel", infoRow)
-	_infoAlive:SetPos(gRespX(130), 0)
-	_infoAlive:SetSize(gRespX(80), gRespY(16))
-	_infoAlive:gSetFont("OxaniumRegular", 11)
-	_infoAlive:gSetColor(gTheme("textDim"))
-	_infoAlive:gSetAlign(TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
-	_infoAlive:gSetText("")
+	self._infoAlive = vgui.Create("gLabel", infoRow)
+	self._infoAlive:SetPos(gRespX(130), 0)
+	self._infoAlive:SetSize(gRespX(80), gRespY(16))
+	self._infoAlive:gSetFont("OxaniumRegular", 11)
+	self._infoAlive:gSetColor(gTheme("textDim"))
+	self._infoAlive:gSetAlign(TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
+	self._infoAlive:gSetText("")
 
 	local infoRow2 = vgui.Create("DPanel", infoWrap)
 	infoRow2:SetPaintBackground(false)
@@ -605,36 +626,34 @@ local function gAdminBuildPanel()
 	infoRow2:SetTall(gRespY(16))
 	infoRow2:DockMargin(0, gRespY(3), 0, 0)
 
-	_infoHP = vgui.Create("gLabel", infoRow2)
-	_infoHP:SetPos(0, 0)
-	_infoHP:SetSize(gRespX(160), gRespY(16))
-	_infoHP:gSetFont("OxaniumRegular", 12)
-	_infoHP:gSetColor(gTheme("text"))
-	_infoHP:gSetAlign(TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
-	_infoHP:gSetText("")
+	self._infoHP = vgui.Create("gLabel", infoRow2)
+	self._infoHP:SetPos(0, 0)
+	self._infoHP:SetSize(gRespX(160), gRespY(16))
+	self._infoHP:gSetFont("OxaniumRegular", 12)
+	self._infoHP:gSetColor(gTheme("text"))
+	self._infoHP:gSetAlign(TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
+	self._infoHP:gSetText("")
 
-	_infoArmor = vgui.Create("gLabel", infoRow2)
-	_infoArmor:SetPos(gRespX(170), 0)
-	_infoArmor:SetSize(gRespX(160), gRespY(16))
-	_infoArmor:gSetFont("OxaniumRegular", 12)
-	_infoArmor:gSetColor(gTheme("text"))
-	_infoArmor:gSetAlign(TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
-	_infoArmor:gSetText("")
+	self._infoArmor = vgui.Create("gLabel", infoRow2)
+	self._infoArmor:SetPos(gRespX(170), 0)
+	self._infoArmor:SetSize(gRespX(160), gRespY(16))
+	self._infoArmor:gSetFont("OxaniumRegular", 12)
+	self._infoArmor:gSetColor(gTheme("text"))
+	self._infoArmor:gSetAlign(TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
+	self._infoArmor:gSetText("")
 
-	-- ── Actions ──────────────────────────────────────────
+	-- Actions
+	self._actionsWrap = vgui.Create("DPanel", self._rightBody)
+	self._actionsWrap:SetPaintBackground(false)
+	self._actionsWrap:Dock(TOP)
+	self._actionsWrap:DockMargin(0, gRespY(6), 0, 0)
+	self._actionsWrap:SetTall(gRespY(500))
 
-	_actionsWrap = vgui.Create("DPanel", _rightBody)
-	_actionsWrap:SetPaintBackground(false)
-	_actionsWrap:Dock(TOP)
-	_actionsWrap:DockMargin(0, gRespY(6), 0, 0)
-	_actionsWrap:SetTall(gRespY(500))
+	self:gAdminBuildActions(self._actionsWrap)
 
-	gAdminBuildActions(_actionsWrap)
-
-	-- ── Warns section ────────────────────────────────────
-
-	if gAdminHasPerm("warnings") then
-		local warnsWrap = vgui.Create("gPanel", _rightBody)
+	-- Warns
+	if self:gAdminHasPerm("warnings") then
+		local warnsWrap = vgui.Create("gPanel", self._rightBody)
 		warnsWrap:Dock(TOP)
 		warnsWrap:DockMargin(0, gRespY(10), 0, 0)
 		warnsWrap:SetTall(gRespY(220))
@@ -648,13 +667,13 @@ local function gAdminBuildPanel()
 		warnsTop:Dock(TOP)
 		warnsTop:SetTall(gRespY(24))
 
-		_warnsHeader = vgui.Create("gLabel", warnsTop)
-		_warnsHeader:SetPos(0, 0)
-		_warnsHeader:SetSize(gRespX(200), gRespY(24))
-		_warnsHeader:gSetFont("OxaniumSemiBold", 12)
-		_warnsHeader:gSetColor(gTheme("warning"))
-		_warnsHeader:gSetAlign(TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
-		_warnsHeader:gSetText("Avertissements (0)")
+		self._warnsHeader = vgui.Create("gLabel", warnsTop)
+		self._warnsHeader:SetPos(0, 0)
+		self._warnsHeader:SetSize(gRespX(200), gRespY(24))
+		self._warnsHeader:gSetFont("OxaniumSemiBold", 12)
+		self._warnsHeader:gSetColor(gTheme("warning"))
+		self._warnsHeader:gSetAlign(TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
+		self._warnsHeader:gSetText("Avertissements (0)")
 
 		local refreshWarnsBtn = vgui.Create("gButton", warnsTop)
 		refreshWarnsBtn:SetPos(gRespX(200), 0)
@@ -663,26 +682,27 @@ local function gAdminBuildPanel()
 		refreshWarnsBtn:gSetText("Recharger", "OxaniumRegular", 10)
 		refreshWarnsBtn:gSetBorder(true, gTheme("border"), gThemeAlpha("border"))
 		refreshWarnsBtn.DoClick = function()
-			if _selSID then
-				gAdminRequestWarns(_selSID)
-				gAdminStatusMsg("Warns rechargés.")
+			if pnl._selSID then
+				pnl:gAdminRequestWarns(pnl._selSID)
+				pnl:gAdminStatusMsg("Warns rechargés.")
 			end
 		end
 
-		if gAdminHasPerm("clearwarnings") then
-			_warnsClear = vgui.Create("gButton", warnsTop)
-			_warnsClear:SetPos(gRespX(288), 0)
-			_warnsClear:gSetSize(100, 22)
-			_warnsClear:gSetBgColor(gTheme("danger"), gThemeAlpha("mid"))
-			_warnsClear:gSetText("Effacer tout", "OxaniumMedium", 10, gContrastText(gTheme("danger")))
-			_warnsClear:SetVisible(false)
-			_warnsClear.DoClick = function()
-				local ply = gAdminGetSelectedPly()
+		if self:gAdminHasPerm("clearwarnings") then
+			self._warnsClear = vgui.Create("gButton", warnsTop)
+			self._warnsClear:SetPos(gRespX(288), 0)
+			self._warnsClear:gSetSize(100, 22)
+			self._warnsClear:gSetBgColor(gTheme("danger"), gThemeAlpha("mid"))
+			self._warnsClear:gSetText("Effacer tout", "OxaniumMedium", 10, gContrastText(gTheme("danger")))
+			self._warnsClear:SetVisible(false)
+			self._warnsClear.DoClick = function()
+				local ply = pnl:gAdminGetSelectedPly()
 				if not ply then return end
 				gAdminSendCmd("clearwarnings", ply:SteamID64())
-				gAdminStatusMsg("Warns effacés pour " .. ply:Nick())
+				pnl:gAdminStatusMsg("Warns effacés pour " .. ply:Nick())
 				timer.Simple(0.3, function()
-					if _selSID then gAdminRequestWarns(_selSID) end
+					if not IsValid(pnl) then return end
+					if pnl._selSID then pnl:gAdminRequestWarns(pnl._selSID) end
 				end)
 			end
 		end
@@ -692,50 +712,61 @@ local function gAdminBuildPanel()
 		warnsScrollWrap:Dock(FILL)
 		warnsScrollWrap:DockMargin(0, gRespY(4), 0, 0)
 
-		_warnsScroll = vgui.Create("DScrollPanel", warnsScrollWrap)
-		_warnsScroll:Dock(FILL)
-		gAdminStyleScrollBar(_warnsScroll:GetVBar())
+		self._warnsScroll = vgui.Create("DScrollPanel", warnsScrollWrap)
+		self._warnsScroll:Dock(FILL)
+		gAdminStyleScrollBar(self._warnsScroll:GetVBar())
 
-		gAdminBuildWarns()
+		self:gAdminBuildWarns()
 	end
 
-	-- auto-height for _rightBody
-	local totalH = 82 + 6 + 500 + (gAdminHasPerm("warnings") and (10 + 220) or 0) + PAD * 2
-	_rightBody:SetTall(gRespY(totalH))
+	local totalH = 82 + 6 + 500 + (self:gAdminHasPerm("warnings") and (10 + 220) or 0) + PAD * 2
+	self._rightBody:SetTall(gRespY(totalH))
 
-	-- ── Status bar ───────────────────────────────────────
-
-	local statusWrap = vgui.Create("gPanel", _panel)
+	-- Status bar
+	local statusWrap = vgui.Create("gPanel", self)
 	statusWrap:SetPos(gRespX(SIDEBAR_W), gRespY(HEADER_H + CONTENT_H))
 	statusWrap:SetSize(gRespX(CONTENT_W), gRespY(STATUS_H))
 	statusWrap:gSetBgColor(gTheme("surface"), gThemeAlpha("high"))
 	statusWrap:gSetRadius(0)
 	statusWrap:gSetCorners(false, false, false, true)
 
-	_statusBar = vgui.Create("gLabel", statusWrap)
-	_statusBar:SetPos(gRespX(12), 0)
-	_statusBar:SetSize(gRespX(CONTENT_W - 24), gRespY(STATUS_H))
-	_statusBar:gSetFont("OxaniumRegular", 11)
-	_statusBar:gSetColor(gTheme("textMute"))
-	_statusBar:gSetAlign(TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
-	_statusBar:gSetText("F10 ou !admin pour ouvrir ce panneau.")
+	self._statusBar = vgui.Create("gLabel", statusWrap)
+	self._statusBar:SetPos(gRespX(12), 0)
+	self._statusBar:SetSize(gRespX(CONTENT_W - 24), gRespY(STATUS_H))
+	self._statusBar:gSetFont("OxaniumRegular", 11)
+	self._statusBar:gSetColor(gTheme("textMute"))
+	self._statusBar:gSetAlign(TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
+	self._statusBar:gSetText("F10 ou !admin pour ouvrir ce panneau.")
+
+	self:gOpen(0.15)
 end
 
--- ── Net handlers ─────────────────────────────────────────
+vgui.Register("gAdminPanel", PANEL, "gFrame")
+
+-- ── Net / concommand ─────────────────────────────────────
 
 net.Receive("gAdmin.Perms", function()
 	local count = net.ReadUInt(8)
-	_perms = {}
+	local perms = {}
 
 	for _ = 1, count do
 		local cmd = net.ReadString()
-		_perms[cmd] = true
+		perms[cmd] = true
 	end
 
-	gAdminBuildPanel()
+	if IsValid(_activeAdminPanel) then
+		_activeAdminPanel:Remove()
+	end
+
+	local pnl = vgui.Create("gAdminPanel")
+	pnl:SetPerms(perms)
+	pnl:BuildLayout()
 end)
 
 net.Receive("gAdmin.Warns", function()
+	local pnl = _activeAdminPanel
+	if not IsValid(pnl) then return end
+
 	local targetSID = net.ReadString()
 	local count     = net.ReadUInt(8)
 
@@ -748,10 +779,10 @@ net.Receive("gAdmin.Warns", function()
 		}
 	end
 
-	if targetSID ~= _selSID then return end
+	if targetSID ~= pnl._selSID then return end
 
-	_warnsData = warns
-	gAdminBuildWarns()
+	pnl._warnsData = warns
+	pnl:gAdminBuildWarns()
 end)
 
 concommand.Add("gAdmin_open", function()
