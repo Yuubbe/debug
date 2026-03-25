@@ -123,6 +123,23 @@ if TKRBASE.StorageSystem == "SQLite" then
 		if callback then callback(result ~= false) end
 	end
 
+	function gAdminGetAllWarns(limit, offset, callback)
+		limit  = math.Clamp(tonumber(limit) or 100, 1, 200)
+		offset = math.max(tonumber(offset) or 0, 0)
+		local q = string.format(
+			"SELECT id, steamid64, reason, given_by, given_at FROM tkr_admin_warns ORDER BY given_at DESC LIMIT %d OFFSET %d",
+			limit, offset
+		)
+		local result = sql.Query(q)
+		if callback then callback(result or {}) end
+	end
+
+	function gAdminCountAllWarns(callback)
+		local result = sql.Query("SELECT COUNT(*) AS total FROM tkr_admin_warns")
+		local total = result and result[1] and tonumber(result[1].total) or 0
+		if callback then callback(total) end
+	end
+
 	function gAdminAddBan(steamid64, reason, bannedBy, duration, callback)
 		if not steamid64 or steamid64 == "" then
 			if callback then callback(false) end
@@ -174,6 +191,33 @@ if TKRBASE.StorageSystem == "SQLite" then
 			sql.SQLStr(scope or ""), sql.SQLStr(msg or ""), os.time()
 		))
 		if callback then callback(result ~= false) end
+	end
+
+	function gAdminGetLogs(limit, offset, scope, callback)
+		limit  = math.Clamp(tonumber(limit) or 100, 1, 200)
+		offset = math.max(tonumber(offset) or 0, 0)
+
+		local where = ""
+		if scope and scope ~= "" then
+			where = " WHERE scope = " .. sql.SQLStr(scope)
+		end
+
+		local q = string.format(
+			"SELECT id, scope, msg, created_at FROM tkr_admin_logs%s ORDER BY created_at DESC LIMIT %d OFFSET %d",
+			where, limit, offset
+		)
+		local result = sql.Query(q)
+		if callback then callback(result or {}) end
+	end
+
+	function gAdminCountLogs(scope, callback)
+		local where = ""
+		if scope and scope ~= "" then
+			where = " WHERE scope = " .. sql.SQLStr(scope)
+		end
+		local result = sql.Query("SELECT COUNT(*) AS total FROM tkr_admin_logs" .. where)
+		local total = result and result[1] and tonumber(result[1].total) or 0
+		if callback then callback(total) end
 	end
 
 	gAdminInitStorage()
@@ -379,6 +423,113 @@ elseif TKRBASE.StorageSystem == "MySQL" then
 		}, function(r, e)
 			if callback then callback(r ~= false) end
 		end)
+	end
+
+	function gAdminGetLogs(limit, offset, scope, callback)
+		limit  = math.Clamp(tonumber(limit) or 100, 1, 200)
+		offset = math.max(tonumber(offset) or 0, 0)
+
+		local connValid = gMySQLValidateConnection("tkrbase")
+		if not connValid then
+			if callback then callback({}) end
+			return
+		end
+
+		local db = TKRBASE.MySQL.connections["tkrbase"].db
+		local queryStr, query
+
+		if scope and scope ~= "" then
+			queryStr = string.format(
+				"SELECT id, scope, msg, created_at FROM tkr_admin_logs WHERE scope = ? ORDER BY created_at DESC LIMIT %d OFFSET %d",
+				limit, offset
+			)
+			query = db:prepare(queryStr)
+			query:setString(1, scope)
+		else
+			queryStr = string.format(
+				"SELECT id, scope, msg, created_at FROM tkr_admin_logs ORDER BY created_at DESC LIMIT %d OFFSET %d",
+				limit, offset
+			)
+			query = db:prepare(queryStr)
+		end
+
+		gMySQLHandleQuery(query, function(result, err)
+			if callback then callback((result and not err) and result or {}) end
+		end, queryStr, {})
+	end
+
+	function gAdminCountLogs(scope, callback)
+		local connValid = gMySQLValidateConnection("tkrbase")
+		if not connValid then
+			if callback then callback(0) end
+			return
+		end
+
+		local db = TKRBASE.MySQL.connections["tkrbase"].db
+
+		if scope and scope ~= "" then
+			local queryStr = "SELECT COUNT(*) AS total FROM tkr_admin_logs WHERE scope = ?"
+			local query = db:prepare(queryStr)
+			query:setString(1, scope)
+			gMySQLHandleQuery(query, function(result, err)
+				local total = 0
+				if result and result[1] and not err then
+					total = tonumber(result[1].total) or 0
+				end
+				if callback then callback(total) end
+			end, queryStr, {})
+		else
+			local queryStr = "SELECT COUNT(*) AS total FROM tkr_admin_logs"
+			local query = db:prepare(queryStr)
+			gMySQLHandleQuery(query, function(result, err)
+				local total = 0
+				if result and result[1] and not err then
+					total = tonumber(result[1].total) or 0
+				end
+				if callback then callback(total) end
+			end, queryStr, {})
+		end
+	end
+
+	function gAdminGetAllWarns(limit, offset, callback)
+		limit  = math.Clamp(tonumber(limit) or 100, 1, 200)
+		offset = math.max(tonumber(offset) or 0, 0)
+
+		local connValid = gMySQLValidateConnection("tkrbase")
+		if not connValid then
+			if callback then callback({}) end
+			return
+		end
+
+		local db = TKRBASE.MySQL.connections["tkrbase"].db
+		local queryStr = string.format(
+			"SELECT id, steamid64, reason, given_by, given_at FROM tkr_admin_warns ORDER BY given_at DESC LIMIT %d OFFSET %d",
+			limit, offset
+		)
+		local query = db:prepare(queryStr)
+
+		gMySQLHandleQuery(query, function(result, err)
+			if callback then callback((result and not err) and result or {}) end
+		end, queryStr, {})
+	end
+
+	function gAdminCountAllWarns(callback)
+		local connValid = gMySQLValidateConnection("tkrbase")
+		if not connValid then
+			if callback then callback(0) end
+			return
+		end
+
+		local db = TKRBASE.MySQL.connections["tkrbase"].db
+		local queryStr = "SELECT COUNT(*) AS total FROM tkr_admin_warns"
+		local query = db:prepare(queryStr)
+		gMySQLHandleQuery(query, function(result, err)
+			local total = 0
+			if result and result[1] and not err then
+				total = tonumber(result[1].total) or 0
+			end
+			if callback then callback(total) end
+		end, queryStr, {})
 	end
 
 	gAdminInitStorage()

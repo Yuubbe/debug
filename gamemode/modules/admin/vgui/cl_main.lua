@@ -1,1 +1,0 @@
--- le block d'action qui permet de tous gerer

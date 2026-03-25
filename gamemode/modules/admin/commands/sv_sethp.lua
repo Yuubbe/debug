@@ -10,7 +10,8 @@ gAdminRegisterCommand("sethp", {
 		local target = gAdminResolveAndValidate(actor, args[1])
 		if not target then return end
 
-		local value = gAdminParseNumber(args[2], 1, 100)
+		local cfg   = TKRBASE.Admin.SetHP
+		local value = gAdminParseNumber(args[2], cfg.Min, cfg.Max)
 		if not value then
 			gAdminReply(actor, gAdminErrorMsg("invalid_number"))
 			return

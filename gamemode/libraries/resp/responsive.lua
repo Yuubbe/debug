@@ -1,5 +1,5 @@
-local BASE_WIDTH = 2560
-local BASE_HEIGHT = 1440
+local BASE_WIDTH = 1920
+local BASE_HEIGHT = 1080
 local BASE_RATIO = 16/9
 local scaleX, scaleY, aspectRatio
 

@@ -64,6 +64,8 @@ local function gDispatch(actor, cmdName, args, rawArgs)
 	return true
 end
 
+gAdminDispatch = gDispatch
+
 function gAdminResolveTarget(actor, query)
 	if not query or query == "" then
 		gAdminReply(actor, gAdminErrorMsg("empty_query"))
@@ -140,6 +142,11 @@ end)
 
 hook.Add("ShowHelp", "gAdmin.ShowHelp", function(ply)
 	if not IsValid(ply) or not ply:IsPlayer() then return end
+
+	if gAdminHasCommand(ply, "admin") then
+		gAdminSendPerms(ply)
+		return
+	end
 
 	local lines  = {"--- Commandes disponibles ---"}
 	local sorted = {}
