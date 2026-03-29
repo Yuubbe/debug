@@ -140,10 +140,12 @@ function PANEL:Think()
 	end
 
 	if self._closeBtn and self._header then
-		local mx, my = self:CursorPos()
-		local cx     = self:GetWide() - _CLOSE_W
-		local hover  = mx >= cx and my >= 0 and my <= self._headerH
-		local speed  = gThemeAlpha("hover") * FrameTime() * 10
+		local mx, my  = self:CursorPos()
+		local w, h    = self:GetSize()
+		local cx      = self:GetWide() - _CLOSE_W
+		local inPanel = mx >= 0 and mx <= w and my >= 0 and my <= h
+		local hover   = inPanel and mx >= cx and my >= 0 and my <= self._headerH
+		local speed   = gThemeAlpha("hover") * FrameTime() * 10
 
 		if hover then
 			self._closeHoverAlpha = math.min(self._closeHoverAlpha + speed, gThemeAlpha("hover"))
