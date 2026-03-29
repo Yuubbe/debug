@@ -111,14 +111,6 @@ include("modules/admin/sv_bans.lua")
 AddCSLuaFile("modules/thirdperson/cl_thirdperson.lua")
 AddCSLuaFile("modules/thirdperson/cl_thirdperson_ui.lua")
 -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- 
--- Logs (client only)
--- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- 
-AddCSLuaFile("modules/logs/cl_logs_ui.lua")
--- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- 
--- Warns — liste globale (client only)
--- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- 
-AddCSLuaFile("modules/warns/cl_warns_ui.lua")
--- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- 
 -- Context menu (client only)
 -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- 
 AddCSLuaFile("modules/contextmenu/cl_contextmenu.lua")
