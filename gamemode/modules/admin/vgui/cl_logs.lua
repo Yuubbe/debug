@@ -17,15 +17,15 @@ function PANEL:Init()
 	if base and base.Init then base.Init(self) end
 	if self.gSetRadius then self:gSetRadius(0) end
 
-	self._page      = 0
-	self._total     = 0
-	self._perPage   = 50
-	self._rows      = {}
-	self._scope     = ""
-	self._listView  = nil
-	self._lblInfo   = nil
-	self._btnPrev   = nil
-	self._btnNext   = nil
+	self._page       = 0
+	self._total      = 0
+	self._perPage    = 50
+	self._rows       = {}
+	self._scope      = ""
+	self._listView   = nil
+	self._lblInfo    = nil
+	self._btnPrev    = nil
+	self._btnNext    = nil
 	self._scopeCombo = nil
 
 	_logsPanel = self
@@ -43,17 +43,38 @@ function PANEL:gRequestPage(page)
 	net.SendToServer()
 end
 
+function PANEL:gOnReceive(total, page, rows)
+	self._total = total
+	self._page  = page
+	self._rows  = rows
+	self:gBuildList()
+end
+
 function PANEL:gBuildList()
 	if not IsValid(self._listView) then return end
 
-	self._listView:gClear()
+	local existing = #self._listView._rows
+	local incoming = #self._rows
 
-	for _, l in ipairs(self._rows) do
-		self._listView:gAddRow({
-			l.scope ~= "" and l.scope or "global",
-			l.msg,
-			os.date("%d/%m/%y %H:%M", l.created_at),
-		})
+	if existing == incoming and existing > 0 then
+		for i, l in ipairs(self._rows) do
+			self._listView._rows[i].data = {
+				tostring(l.id or ""),
+				l.scope ~= "" and l.scope or "global",
+				l.msg,
+				os.date("%d/%m/%y %H:%M", l.created_at),
+			}
+		end
+	else
+		self._listView:gClear()
+		for _, l in ipairs(self._rows) do
+			self._listView:gAddRow({
+				tostring(l.id or ""),
+				l.scope ~= "" and l.scope or "global",
+				l.msg,
+				os.date("%d/%m/%y %H:%M", l.created_at),
+			})
+		end
 	end
 
 	local totalPages = math.max(1, math.ceil(self._total / self._perPage))
@@ -66,13 +87,8 @@ function PANEL:gBuildList()
 		)
 	end
 
-	if IsValid(self._btnPrev) then
-		self._btnPrev:gSetDisabled(self._page <= 0)
-	end
-
-	if IsValid(self._btnNext) then
-		self._btnNext:gSetDisabled(cur >= totalPages)
-	end
+	if IsValid(self._btnPrev) then self._btnPrev:gSetDisabled(self._page <= 0) end
+	if IsValid(self._btnNext) then self._btnNext:gSetDisabled(cur >= totalPages) end
 end
 
 function PANEL:gBuild(leftPanel)
@@ -177,9 +193,32 @@ function PANEL:gBuild(leftPanel)
 	self._listView:gSetRowStyle("OxaniumRegular", 11, nil, true)
 	self._listView:gSetRowHeight(26)
 	self._listView:gSetHeaderHeight(28)
+	self._listView:gAddColumn("ID",      40,  TEXT_ALIGN_CENTER)
 	self._listView:gAddColumn("Scope",   100, TEXT_ALIGN_CENTER)
 	self._listView:gAddColumn("Message", nil,  TEXT_ALIGN_LEFT)
 	self._listView:gAddColumn("Date",    110,  TEXT_ALIGN_CENTER)
+
+	self._listView.OnRowRightClick = function(_, idx, data, x, y)
+		local logID = tonumber(data[1])
+		if not logID then return end
+
+		local m = gMenu(x, y)
+		m:gAddItem("Log #" .. logID .. " — " .. tostring(data[3]):sub(1, 30), nil, gTheme("textMute"))
+		m:gAddSeparator()
+		m:gAddDanger("Supprimer ce log", function()
+			gStringRequest(
+				"Supprimer le log",
+				"Tapez CONFIRMER pour supprimer le log #" .. logID,
+				"CONFIRMER",
+				function(val)
+					if val ~= "CONFIRMER" then return end
+					net.Start("gAdmin.DeleteLog")
+						net.WriteUInt(logID, 32)
+					net.SendToServer()
+				end
+			)
+		end)
+	end
 
 	self:gOpen(0.12)
 
@@ -202,6 +241,7 @@ net.Receive("gAdmin.Logs", function()
 
 	for _ = 1, count do
 		rows[#rows + 1] = {
+			id         = net.ReadUInt(32),
 			scope      = net.ReadString(),
 			msg        = net.ReadString(),
 			created_at = net.ReadUInt(32),
@@ -209,9 +249,22 @@ net.Receive("gAdmin.Logs", function()
 	end
 
 	if IsValid(_logsPanel) then
-		_logsPanel._total = total
-		_logsPanel._page  = page
-		_logsPanel._rows  = rows
-		_logsPanel:gBuildList()
+		_logsPanel:gOnReceive(total, page, rows)
+	end
+end)
+
+net.Receive("gAdmin.DeleteDone", function()
+	local dtype = net.ReadString()
+	local ok    = net.ReadBool()
+	local id    = net.ReadUInt(32)
+
+	if dtype ~= "log" then return end
+	if not IsValid(_logsPanel) then return end
+
+	if ok then
+		gNotify("Log #" .. id .. " supprimé.", "success", 3)
+		_logsPanel:gRequestPage(_logsPanel._page)
+	else
+		gNotify("Erreur lors de la suppression.", "danger", 3)
 	end
 end)

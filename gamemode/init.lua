@@ -20,6 +20,8 @@ AddCSLuaFile("libraries/vgui/inputs/checkbox.lua")
 AddCSLuaFile("libraries/vgui/inputs/combobox.lua")
 AddCSLuaFile("libraries/vgui/inputs/numslider.lua")
 AddCSLuaFile("libraries/vgui/inputs/numwang.lua")
+AddCSLuaFile("libraries/vgui/inputs/menu.lua")
+AddCSLuaFile("libraries/vgui/inputs/stringrequest.lua")
 AddCSLuaFile("libraries/vgui/layout/scrollpanel.lua")
 AddCSLuaFile("libraries/vgui/layout/iconlayout.lua")
 AddCSLuaFile("libraries/vgui/layout/listlayout.lua")
@@ -92,17 +94,17 @@ if TKRBASE.StorageSystem == "MySQL" then
 end
 -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- 
 -- Admin (server only) — sv_commands.lua auto-include les commands/
--- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- 
+-- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
+AddCSLuaFile("modules/admin/vgui/cl_left.lua")
+AddCSLuaFile("modules/admin/vgui/cl_logs.lua")
+AddCSLuaFile("modules/admin/vgui/cl_player.lua")
+AddCSLuaFile("modules/admin/vgui/cl_warns.lua")
 include("modules/admin/sv_config.lua")
 include("modules/admin/sv_utils.lua")
 include("modules/admin/sv_storage.lua")
 include("modules/admin/sv_ranks.lua")
 include("modules/admin/sv_commands.lua")
 include("modules/admin/sv_net.lua")
-AddCSLuaFile("modules/admin/vgui/cl_left.lua")
-AddCSLuaFile("modules/admin/vgui/cl_logs.lua")
-AddCSLuaFile("modules/admin/vgui/cl_player.lua")
-AddCSLuaFile("modules/admin/vgui/cl_warns.lua")
 include("modules/admin/sv_warns.lua")
 include("modules/admin/sv_bans.lua")
 -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- 

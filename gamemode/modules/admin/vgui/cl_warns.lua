@@ -23,14 +23,14 @@ function PANEL:Init()
 	if base and base.Init then base.Init(self) end
 	if self.gSetRadius then self:gSetRadius(0) end
 
-	self._page      = 0
-	self._total     = 0
-	self._perPage   = 50
-	self._rows      = {}
-	self._listView  = nil
-	self._lblInfo   = nil
-	self._btnPrev   = nil
-	self._btnNext   = nil
+	self._page       = 0
+	self._total      = 0
+	self._perPage    = 50
+	self._rows       = {}
+	self._listView   = nil
+	self._lblInfo    = nil
+	self._btnPrev    = nil
+	self._btnNext    = nil
 	self._btnRefresh = nil
 
 	_warnsPanel = self
@@ -47,19 +47,40 @@ function PANEL:gRequestPage(page)
 	net.SendToServer()
 end
 
+function PANEL:gOnReceive(total, page, rows)
+	self._total = total
+	self._page  = page
+	self._rows  = rows
+	self:gBuildList()
+end
+
 function PANEL:gBuildList()
 	if not IsValid(self._listView) then return end
 
-	self._listView:gClear()
+	local existing = #self._listView._rows
+	local incoming = #self._rows
 
-	for _, w in ipairs(self._rows) do
-		self._listView:gAddRow({
-			tostring(w.id),
-			tostring(w.steamid64),
-			w.reason,
-			w.given_by,
-			os.date("%d/%m/%y %H:%M", w.given_at),
-		})
+	if existing == incoming and existing > 0 then
+		for i, w in ipairs(self._rows) do
+			self._listView._rows[i].data = {
+				tostring(w.id),
+				tostring(w.steamid64),
+				w.reason,
+				w.given_by,
+				os.date("%d/%m/%y %H:%M", w.given_at),
+			}
+		end
+	else
+		self._listView:gClear()
+		for _, w in ipairs(self._rows) do
+			self._listView:gAddRow({
+				tostring(w.id),
+				tostring(w.steamid64),
+				w.reason,
+				w.given_by,
+				os.date("%d/%m/%y %H:%M", w.given_at),
+			})
+		end
 	end
 
 	local totalPages = math.max(1, math.ceil(self._total / self._perPage))
@@ -72,13 +93,8 @@ function PANEL:gBuildList()
 		)
 	end
 
-	if IsValid(self._btnPrev) then
-		self._btnPrev:gSetDisabled(self._page <= 0)
-	end
-
-	if IsValid(self._btnNext) then
-		self._btnNext:gSetDisabled(cur >= totalPages)
-	end
+	if IsValid(self._btnPrev) then self._btnPrev:gSetDisabled(self._page <= 0) end
+	if IsValid(self._btnNext) then self._btnNext:gSetDisabled(cur >= totalPages) end
 end
 
 function PANEL:gBuild(leftPanel)
@@ -166,6 +182,28 @@ function PANEL:gBuild(leftPanel)
 	self._listView:gAddColumn("Par",      100, TEXT_ALIGN_LEFT)
 	self._listView:gAddColumn("Date",     110, TEXT_ALIGN_CENTER)
 
+	self._listView.OnRowRightClick = function(_, idx, data, x, y)
+		local warnID = tonumber(data[1])
+		if not warnID then return end
+
+		local m = gMenu(x, y)
+		m:gAddItem("Warn #" .. warnID .. " — " .. tostring(data[3]):sub(1, 30), nil, gTheme("textMute"))
+		m:gAddSeparator()
+		m:gAddDanger("Supprimer ce warn", function()
+			gStringRequest(
+				"Supprimer le warn",
+				"Tapez CONFIRMER pour supprimer le warn #" .. warnID,
+				"CONFIRMER",
+				function(val)
+					if val ~= "CONFIRMER" then return end
+					net.Start("gAdmin.DeleteWarn")
+						net.WriteUInt(warnID, 32)
+					net.SendToServer()
+				end
+			)
+		end)
+	end
+
 	self:gOpen(0.12)
 
 	timer.Simple(0, function()
@@ -196,9 +234,22 @@ net.Receive("gAdmin.AllWarns", function()
 	end
 
 	if IsValid(_warnsPanel) then
-		_warnsPanel._total = total
-		_warnsPanel._page  = page
-		_warnsPanel._rows  = rows
-		_warnsPanel:gBuildList()
+		_warnsPanel:gOnReceive(total, page, rows)
+	end
+end)
+
+net.Receive("gAdmin.DeleteDone", function()
+	local dtype = net.ReadString()
+	local ok    = net.ReadBool()
+	local id    = net.ReadUInt(32)
+
+	if dtype ~= "warn" then return end
+	if not IsValid(_warnsPanel) then return end
+
+	if ok then
+		gNotify("Warn #" .. id .. " supprimé.", "success", 3)
+		_warnsPanel:gRequestPage(_warnsPanel._page)
+	else
+		gNotify("Erreur lors de la suppression.", "danger", 3)
 	end
 end)

@@ -5,6 +5,7 @@ local _ROW_H    = 28
 
 function PANEL:Init()
 	self:SetPaintBackground(false)
+	self:SetMouseInputEnabled(true)
 
 	self._radius       = gThemeRadius("sm")
 	self._bgColor      = nil
@@ -29,7 +30,7 @@ function PANEL:Init()
 	self._rowBgEven    = nil
 	self._rowBgOdd     = nil
 	self._rowBgAlpha   = 20
-	self._stripes      = true
+	self._stripes      = false
 
 	self._padX         = 10
 	self._sepAlpha     = gThemeAlpha("sep")
@@ -102,6 +103,7 @@ function PANEL:gAddColumn(label, width, align)
 		align = align or TEXT_ALIGN_LEFT,
 		hover = 0,
 	})
+	self:_invalidateCache()
 end
 
 function PANEL:gAddRow(data)
@@ -194,14 +196,32 @@ function PANEL:_rowAt(my, w, h)
 	return idx
 end
 
+function PANEL:_invalidateCache()
+	self._cachedWidths = nil
+	self._cachedW      = nil
+end
+
+function PANEL:_colWidthsCached(w)
+	if self._cachedWidths and self._cachedW == w then
+		return self._cachedWidths, gRespX(self._padX)
+	end
+	local widths, pad = self:_colWidths(w)
+	self._cachedWidths = widths
+	self._cachedW      = w
+	return widths, pad
+end
+
+function PANEL:OnRowRightClick(idx, data, x, y) end
+
 function PANEL:OnMousePressed(code)
-	if code ~= MOUSE_LEFT then return end
-	local mx, my = self:CursorPos()
-	local w, h   = self:GetSize()
+	local mx, my  = self:CursorPos()
+	local w, h    = self:GetSize()
 	local headerH = gRespY(self._headerH)
 
+	if code ~= MOUSE_LEFT then return end
+
 	if my < headerH then
-		local widths, pad = self:_colWidths(w)
+		local widths, pad = self:_colWidthsCached(w)
 		local cx = pad
 		for i, cw in ipairs(widths) do
 			if mx >= cx and mx <= cx + cw then
@@ -211,6 +231,7 @@ function PANEL:OnMousePressed(code)
 					self._sortDesc = false
 				end
 				self:gSort(i, self._sortDesc)
+				self:_invalidateCache()
 				return
 			end
 			cx = cx + cw
@@ -248,6 +269,19 @@ function PANEL:Think()
 	local hovering = IsValid(hovered) and (hovered == self or hovered:IsOurChild(self))
 		and mx >= 0 and mx <= w and my >= 0 and my <= h
 
+	local rightDown = hovering and input.IsMouseDown(MOUSE_RIGHT)
+	if hovering and rightDown and not self._wasRightDown then
+		if my >= headerH then
+			local idx = self:_rowAt(my, w, h)
+			if idx then
+				local sx, sy = self:LocalToScreen(mx, my)
+				self:OnRowRightClick(idx, self._rows[idx].data, sx, sy)
+			end
+		end
+	end
+	self._wasRightDown = rightDown
+		and mx >= 0 and mx <= w and my >= 0 and my <= h
+
 	self._scrollAlpha = math.Clamp(
 		self._scrollAlpha + ((hovering and maxScroll > 0 and 160 or 0) - self._scrollAlpha) * speed,
 		0, 160
@@ -274,87 +308,76 @@ function PANEL:Paint(w, h)
 	local padX    = gRespX(self._padX)
 	local bg      = self._bgColor or gTheme("surface")
 	local hc      = self._headerColor or gTheme("elevated")
-	local widths, _ = self:_colWidths(w)
+	local widths, _ = self:_colWidthsCached(w)
 	local scrollW = gRespX(self._scrollW)
+	local sep     = gTheme("border")
+	local ac      = gTheme("accent")
+	local hov     = gTheme("border")
+	local hFont   = self._headerFont .. ":" .. self._headerSize
+	local rFont   = self._rowFont .. ":" .. self._rowSize
+	local htc     = self._headerTextColor or gTheme("textDim")
+	local rtc     = self._rowTextColor or gTheme("text")
+	local acR, acG, acB = ac.r, ac.g, ac.b
+	local sepR, sepG, sepB = sep.r, sep.g, sep.b
+	local hovR, hovG, hovB = hov.r, hov.g, hov.b
+	local rowContentW = w - scrollW - gRespX(4)
 
 	draw.RoundedBox(r, 0, 0, w, h, Color(bg.r, bg.g, bg.b, self._bgAlpha))
 	draw.RoundedBoxEx(r, 0, 0, w, headerH, Color(hc.r, hc.g, hc.b, self._headerAlpha), true, true, false, false)
 
-	local hFont = self._headerFont .. ":" .. self._headerSize
-	local htc   = self._headerTextColor or gTheme("textDim")
-	local cx    = padX
-
+	local cx = padX
 	for i, col in ipairs(self._cols) do
-		local cw = widths[i]
-		local tx = col.align == TEXT_ALIGN_CENTER and cx + cw * 0.5 or (col.align == TEXT_ALIGN_RIGHT and cx + cw - padX or cx)
+		local cw    = widths[i]
 		local label = col.label
-
 		if self._sortCol == i then
 			label = label .. " " .. (self._sortDesc and "▼" or "▲")
 		end
-
+		local tx = col.align == TEXT_ALIGN_CENTER and cx + cw * 0.5
+			or (col.align == TEXT_ALIGN_RIGHT and cx + cw - padX or cx)
 		draw.SimpleText(label, hFont, tx, headerH * 0.5, htc, col.align, TEXT_ALIGN_CENTER)
-
 		if i < #self._cols then
-			local sep = gTheme("border")
-			surface.SetDrawColor(sep.r, sep.g, sep.b, self._sepAlpha)
+			surface.SetDrawColor(sepR, sepG, sepB, self._sepAlpha)
 			surface.DrawLine(cx + cw, 4, cx + cw, headerH - 4)
 		end
-
 		cx = cx + cw
 	end
 
-	local sep = gTheme("border")
-	surface.SetDrawColor(sep.r, sep.g, sep.b, self._sepAlpha)
+	surface.SetDrawColor(sepR, sepG, sepB, self._sepAlpha)
 	surface.DrawLine(0, headerH, w, headerH)
 
-	local sx, sy = self:LocalToScreen(0, headerH)
-	local ex, ey = self:LocalToScreen(w, h)
-	render.SetScissorRect(sx, sy, ex, ey, true)
-
-	local rFont = self._rowFont .. ":" .. self._rowSize
-	local rtc   = self._rowTextColor or gTheme("text")
+	local ssx, ssy = self:LocalToScreen(0, headerH)
+	local sex, sey = self:LocalToScreen(w, h)
+	render.SetScissorRect(ssx, ssy, sex, sey, true)
 
 	for i, row in ipairs(self._rows) do
 		local ry = headerH + (i - 1) * rowH - self._scrollY
 		if ry + rowH < headerH or ry > h then continue end
 
-		if self._stripes and i % 2 == 0 then
-			local sc = self._rowBgEven or gTheme("border")
-			surface.SetDrawColor(sc.r, sc.g, sc.b, self._rowBgAlpha)
-			surface.DrawRect(0, ry, w - scrollW - gRespX(4), rowH)
-		end
+		local isSel = i == self._selectedRow
 
-		if i == self._selectedRow then
-			local ac = gTheme("accent")
-			surface.SetDrawColor(ac.r, ac.g, ac.b, 35)
-			surface.DrawRect(0, ry, w - scrollW - gRespX(4), rowH)
-		end
-
-		if row.hover > 0 and i ~= self._selectedRow then
-			local hov = gTheme("border")
-			surface.SetDrawColor(hov.r, hov.g, hov.b, row.hover)
-			surface.DrawRect(0, ry, w - scrollW - gRespX(4), rowH)
-		end
-
-		if i == self._selectedRow then
-			local ac = gTheme("accent")
-			surface.SetDrawColor(ac.r, ac.g, ac.b, 180)
+		if isSel then
+			surface.SetDrawColor(acR, acG, acB, 35)
+			surface.DrawRect(0, ry, rowContentW, rowH)
+			surface.SetDrawColor(acR, acG, acB, 180)
 			surface.DrawRect(0, ry, gRespX(2), rowH)
+		elseif row.hover > 0 then
+			surface.SetDrawColor(hovR, hovG, hovB, row.hover)
+			surface.DrawRect(0, ry, rowContentW, rowH)
 		end
 
 		local rcx = padX
+		local tc  = isSel and ac or rtc
 		for j, col in ipairs(self._cols) do
 			local cw  = widths[j]
 			local val = tostring(row.data[j] or "")
-			local tc  = i == self._selectedRow and gTheme("accent") or rtc
-			local tx  = col.align == TEXT_ALIGN_CENTER and rcx + cw * 0.5 or (col.align == TEXT_ALIGN_RIGHT and rcx + cw - padX or rcx)
+			local tx  = col.align == TEXT_ALIGN_CENTER and rcx + cw * 0.5
+				or (col.align == TEXT_ALIGN_RIGHT and rcx + cw - padX or rcx)
 			draw.SimpleText(val, rFont, tx, ry + rowH * 0.5, tc, col.align, TEXT_ALIGN_CENTER)
 			rcx = rcx + cw
 		end
 
 		if i < #self._rows then
-			surface.SetDrawColor(sep.r, sep.g, sep.b, self._sepAlpha)
+			surface.SetDrawColor(sepR, sepG, sepB, self._sepAlpha)
 			surface.DrawLine(padX, ry + rowH, w - scrollW - gRespX(8), ry + rowH)
 		end
 	end
@@ -369,17 +392,16 @@ function PANEL:Paint(w, h)
 			local ratio  = math.min(viewH / totalH, 1)
 			local thumbH = math.max(ratio * viewH, gRespY(20))
 			local thumbY = headerH + (self._scrollY / maxScroll) * (viewH - thumbH)
-			local sx     = w - scrollW - gRespX(2)
-
-			surface.SetDrawColor(sep.r, sep.g, sep.b, self._scrollAlpha * 0.3)
-			surface.DrawRect(sx, headerH, scrollW, viewH)
-			surface.SetDrawColor(sep.r, sep.g, sep.b, self._scrollAlpha)
-			surface.DrawRect(sx, thumbY, scrollW, thumbH)
+			local sxp    = w - scrollW - gRespX(2)
+			surface.SetDrawColor(sepR, sepG, sepB, self._scrollAlpha * 0.3)
+			surface.DrawRect(sxp, headerH, scrollW, viewH)
+			surface.SetDrawColor(sepR, sepG, sepB, self._scrollAlpha)
+			surface.DrawRect(sxp, thumbY, scrollW, thumbH)
 		end
 	end
 
 	if self._border then
-		local bc = self._borderColor or gTheme("border")
+		local bc = self._borderColor or sep
 		surface.SetDrawColor(bc.r, bc.g, bc.b, self._borderAlpha)
 		surface.DrawOutlinedRect(0, 0, w, h, self._borderSize)
 	end
